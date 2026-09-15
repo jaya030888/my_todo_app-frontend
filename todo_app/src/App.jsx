@@ -13,55 +13,89 @@ import pic10 from "./1f4d7742f6ad75cbd1bcb6571bfbd9b4.png";
 function App() {
 
   const [todo, setTodo] = useState([]);
-const [title, setTitle] = useState(''); 
+  const [title, setTitle] = useState(''); 
+  const [backendAvailable, setBackendAvailable] = useState(true);
 
+  const fetchTodos = async () => {
+    try {
+      const res = await fetch('http://localhost:3000');
+      if (!res.ok) throw new Error('Network response was not ok');
+      const data = await res.json();
+      setTodo(data);
+      setBackendAvailable(true);
+    } catch (error) {
+      setBackendAvailable(false);
+      const savedTodos = localStorage.getItem('todos');
+      setTodo(savedTodos ? JSON.parse(savedTodos) : []);
+    }
+  };
 
-const fetchTodos = async () => {
-const res = await fetch('http://localhost:3000');
-const data = await res.json();
-setTodo(data);
-};
+  useEffect(() => {
+    fetchTodos();
+  }, []);
 
+  useEffect(() => {
+    if (!backendAvailable) {
+      localStorage.setItem('todos', JSON.stringify(todo));
+    }
+  }, [todo, backendAvailable]);
 
-useEffect(() => {
-fetchTodos();
-}, []);
+  const addTodo = async () => {
+    if (!title.trim()) return;
+    
+    if (backendAvailable) {
+      try {
+        await fetch('http://localhost:3000', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title })
+        });
+        setTitle('');
+        fetchTodos();
+        return;
+      } catch (e) {
+        setBackendAvailable(false);
+      }
+    }
+    
+    const newTodo = { id: Date.now().toString(), title, completed: false };
+    setTodo([...todo, newTodo]);
+    setTitle('');
+  };
 
+  const updateTodo = async (item) => {
+    if (backendAvailable) {
+      try {
+        await fetch(`http://localhost:3000/${item.id}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ title: item.title, completed: !item.completed })
+        });
+        fetchTodos();
+        return;
+      } catch (e) {
+        setBackendAvailable(false);
+      }
+    }
+    
+    setTodo(todo.map((t) => (t.id === item.id ? { ...t, completed: !t.completed } : t)));
+  };
 
-const addTodo = async () => {
-await fetch('http://localhost:3000', {
-method: 'POST',
-headers: {
-'Content-Type': 'application/json'
-},
-body: JSON.stringify({ title })
-});
-setTitle('');
-fetchTodos();
-};
-
-
-const updateTodo = async (todo) => {
-await fetch(`http://localhost:3000/${todo.id}`, {
-method: 'PUT',
-headers: {
-'Content-Type': 'application/json'
-},
-body: JSON.stringify({
-title: todo.title,  
-completed: !todo.completed
-})
-});
-fetchTodos();
-};
-
-
-const deleteTodo = async (id) => {
-await fetch(`http://localhost:3000/${id}`, {
-method: 'DELETE'
-});
-fetchTodos();
-};
+  const deleteTodo = async (id) => {
+    if (backendAvailable) {
+      try {
+        await fetch(`http://localhost:3000/${id}`, {
+          method: 'DELETE'
+        });
+        fetchTodos();
+        return;
+      } catch (e) {
+        setBackendAvailable(false);
+      }
+    }
+    
+    setTodo(todo.filter((t) => t.id !== id));
+  };
 
 
   return (
